@@ -7,9 +7,6 @@ from langchain.chains import LLMChain
 from dotenv import load_dotenv
 from src.prompt import prompt
 import os
-from langchain.chains import SimpleSequentialChain
-from langchain.chat_models import ChatOpenAI
-
 
 
 app=Flask(__name__)
@@ -22,25 +19,36 @@ Index = pc.Index("chatbot")
 
 embeddings = download_huggingface_embedding_model()
 
+llm = CTransformers(model="model/llama-2-7b-chat.ggmlv3.q4_0.bin", model_type="llama",
+                    config={"temperature" : 0.8})
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-llm = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model="gpt-3.5-turbo")
+@app.route("/")
 
+def index():
+    return render_template('index.html')
 
-query = "headache"
+@app.route("/get", methods=["GET", "POST"])
+def chat():
+    msg = request.form["msg"]
+    input = msg
+    
+    query = input
 
-result = Index.query(
-    vector=embeddings.embed_query(query),
-    top_k=5,
-    include_metadata=True
-)
+    result = Index.query(
+        vector=embeddings.embed_query(query),
+        top_k=3,
+        include_metadata=True
+    )
 
-final_results = [match.get("metadata") for match in result.get("matches")]
+    final_results = [match.get("metadata") for match in result.get("matches")]
 
+    chain = LLMChain(llm=llm, prompt=prompt)
 
-chain = LLMChain(llm=llm, prompt=prompt)
+    return str(chain.run({"question" : query, "context" : final_results}))
 
-print(chain.run({"question" : query, "context" : final_results}))
+if __name__== '__main__':
+    app.run(debug=True)
+
 
 
 
